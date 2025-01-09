@@ -1,2 +1,6 @@
 gradio==5.11.0
 groq==0.13.1
+transformers[torch]==4.47.1
+tiktoken==0.8.0
+verovio==4.5.1
+torchvision==0.20.1

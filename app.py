@@ -1,10 +1,7 @@
 import gradio as gr
 from PIL import Image
-import os
 import sqlite3
-from groq import Groq
-import io
-import base64
+from ocr_engine import ocr_model
 
 
 def initialize_database():
@@ -19,64 +16,23 @@ def initialize_database():
     """
     )
     db_connection.commit()
-    return db_connection, cursor
-
-
-# Configuration GroqCloud
-def initialize_groq():
-    return Groq(
-        api_key=os.getenv("GROQ_API_KEY"),
-    )
-
-
-def encode_image_to_base64(image: Image.Image):
-    """Convert a PIL image to a base64-encoded string."""
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    buffer.seek(0)
-    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+    db_connection.close()
 
 
 class VoterCardVerifier:
     def __init__(self):
-        self.connection, self.cursor = initialize_database()
-        self.groq = initialize_groq()
-
+        initialize_database()
+    
     def verify_card(self, image, card_number):
         # Convertir l'image pour Groq
         if isinstance(image, str):
             image = Image.open(image)
-        image = encode_image_to_base64(image)
 
-        # Préparer la requête pour le modèle
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"Vérifie si le numéro {card_number} est clairement visible et lisible sur l'image de cette carte d'électeur."
-                        " Confirme également que cette carte est bien d'origine camerounaise en vérifiant la présence explicite de la mention 'Cameroun' sur la carte."
-                        " Réponds uniquement par 'true' ou 'false' : 'true' si le numéro est présent, lisible, et que la carte est d'origine camerounaise ; 'false' dans tous les autres cas.",
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/PNG;base64,{image}"},
-                    },
-                ],
-            },
-        ]
+        # Préparer la requête pour le modèle et l'appeler
+        message = ocr_model.chat(image).strip().lower()
 
-        # Appeler le modèle
-        response = self.groq.chat.completions.create(
-            model=os.getenv("GROQ_MODEL_ID"),
-            messages=messages,
-            temperature=0.1,
-            max_tokens=25,
-        )
-        result = response.choices[0].message.content.strip().lower()
-        print(result)
-        is_valid = "true" in result
+        # valider les entrées
+        is_valid = ("camer" in message) and (card_number in message)
 
         if is_valid:
             # Sauvegarder dans Firebase
@@ -85,16 +41,20 @@ class VoterCardVerifier:
             return "Numéro de carte non trouvé sur l'image"
 
     def save_card_number(self, card_number):
+        db_connection = sqlite3.connect("voter_cards.db")
+        cursor = db_connection.cursor()
         # Ajouter le numéro à Firestore
         # Sauvegarder dans la base de données
         try:
-            self.cursor.execute(
+            cursor.execute(
                 "INSERT INTO voter_cards (card_number) VALUES (?)", (card_number,)
             )
-            self.connection.commit()
+            db_connection.commit()
             return f"Numéro vérifié et sauvegardé : {card_number}"
         except sqlite3.IntegrityError:
             return f"Le numéro {card_number} existe déjà dans la base."
+        finally:
+            db_connection.close()
 
 
 # Interface Gradio
