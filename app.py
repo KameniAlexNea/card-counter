@@ -1,60 +1,63 @@
+import io
+
+import easyocr
+import firebase_admin
 import gradio as gr
+from firebase_admin import credentials, firestore
+from loguru import logger
 from PIL import Image
-import sqlite3
-from ocr_engine import ocr_model
 
 
-def initialize_database():
-    db_connection = sqlite3.connect("voter_cards.db")
-    cursor = db_connection.cursor()
-    cursor.execute(
-        """
-    CREATE TABLE IF NOT EXISTS voter_cards (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        card_number TEXT UNIQUE
-    )
-    """
-    )
-    db_connection.commit()
-    db_connection.close()
+class EasyOCRReader:
+    def __init__(self):
+        self.reader = easyocr.Reader(["fr", "en"], gpu=False)
+
+    def chat(self, image: Image.Image):
+        # Convert image to bytes
+        img_byte_arr = io.BytesIO()
+        image.save(img_byte_arr, format="PNG")
+        img_byte_arr = img_byte_arr.getvalue()
+
+        # Call readtext with image bytes
+        texts = self.reader.readtext(img_byte_arr, detail=0)
+        logger.info(" ".join(texts))
+        return " ".join(texts)
+
+
+class FirebaseConnector:
+    def __init__(self):
+        cred = credentials.Certificate("data/connection_key.json")
+        firebase_admin.initialize_app(cred)
+        self.db = firestore.client()
+
+    def add(self, ocr: str, key: str):
+        return self.db.collection("id-card").add({"card-id": key, "ocr": ocr})
 
 
 class VoterCardVerifier:
     def __init__(self):
-        initialize_database()
-    
+        self.db = FirebaseConnector()
+        self.ocr_engine = EasyOCRReader()
+
     def verify_card(self, image, card_number):
         # Convertir l'image pour Groq
         if isinstance(image, str):
             image = Image.open(image)
 
         # Préparer la requête pour le modèle et l'appeler
-        message = ocr_model.chat(image).strip().lower()
+        ocr_data = self.ocr_engine.chat(image).strip().lower()
 
         # valider les entrées
-        is_valid = ("camer" in message) and (card_number in message)
+        is_valid = ("camer" in ocr_data) and (card_number in ocr_data)
 
         if is_valid:
             # Sauvegarder dans Firebase
-            return self.save_card_number(card_number)
+            return self.save_card_number(ocr_data, card_number)
         else:
             return "Numéro de carte non trouvé sur l'image"
 
-    def save_card_number(self, card_number):
-        db_connection = sqlite3.connect("voter_cards.db")
-        cursor = db_connection.cursor()
-        # Ajouter le numéro à Firestore
-        # Sauvegarder dans la base de données
-        try:
-            cursor.execute(
-                "INSERT INTO voter_cards (card_number) VALUES (?)", (card_number,)
-            )
-            db_connection.commit()
-            return f"Numéro vérifié et sauvegardé : {card_number}"
-        except sqlite3.IntegrityError:
-            return f"Le numéro {card_number} existe déjà dans la base."
-        finally:
-            db_connection.close()
+    def save_card_number(self, ocr_data, card_number):
+        return self.db.add(ocr_data, card_number)
 
 
 # Interface Gradio
