@@ -4,3 +4,4 @@ Pillow
 easyocr
 loguru
 firebase-admin
+python-dotenv
