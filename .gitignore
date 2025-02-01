@@ -174,3 +174,5 @@ cython_debug/
 uploads
 results
 voter_cards.db
+
+data
