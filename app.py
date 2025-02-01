@@ -16,12 +16,18 @@ from loguru import logger
 from PIL import Image
 from thefuzz import fuzz
 
+from processor import ImageHandler, PreprocessingConfig, ProcessedImage
+
 
 class EasyOCRReader:
     def __init__(self):
         self.reader = easyocr.Reader(["fr", "en"], gpu=False)
+        self.process = ImageHandler()
+        self.config = PreprocessingConfig()
 
-    def chat(self, image: Image.Image):
+    def chat(self, image):
+        processed: ProcessedImage = self.process.preprocess_image(image, self.config)
+        image = Image.fromarray(processed.image)
         # Convert image to bytes
         img_byte_arr = io.BytesIO()
         image.save(img_byte_arr, format="PNG")
