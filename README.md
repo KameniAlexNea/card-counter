@@ -1,19 +1,20 @@
-# Voter Card Verification System
+# Card ID Counter
 
 ## Overview
 
-This project is a web-based application for verifying voter card numbers using machine learning and database storage. Users upload an image of their voter card along with the card number. The application uses GroqCloud's LLM to verify:
+**Card ID Counter** is a web-based application for verifying voter card numbers using Optical Character Recognition (OCR) and a database for storage. Users upload an image of their voter card along with the card number, and the application verifies:
 
 1. If the provided number appears on the card.
 2. If the card is of Cameroonian origin (by checking for the presence of "Cameroun" on the card).
 
-If the verification is successful, the card number is saved in a local SQLite database.
+If verification is successful, the card number is stored in a Firebase database.
 
 ## Features
 
-* **Image and Text Verification** : Validates the voter card number and checks the origin of the card using GroqCloud's LLM with vision capabilities.
-* **Database Integration** : Stores verified card numbers in a SQLite database, ensuring uniqueness.
-* **User-Friendly Interface** : Provides an intuitive interface built with Gradio for easy interaction.
+* **OCR-based Verification** : Uses EasyOCR to extract text from the voter card image.
+* **Database Integration** : Stores verified card numbers in Firebase, ensuring uniqueness.
+* **User-Friendly Interface** : Built with Gradio for easy interaction.
+* **Fuzzy Matching** : Uses fuzzy string matching to improve number recognition accuracy.
 
 ## Installation and Setup
 
@@ -23,71 +24,70 @@ If the verification is successful, the card number is saved in a local SQLite da
 2. Required Python packages:
    * `gradio`
    * `pillow`
-   * `sqlite3` (part of Python's standard library)
-   * `groq` (GroqCloud Python SDK)
-   * `base64` (part of Python's standard library)
+   * `easyocr`
+   * `firebase-admin`
+   * `thefuzz`
+   * `python-dotenv`
 
 ### Steps
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/your-repo/voter-card-verification.git
-   cd voter-card-verification
+   git clone git@github.com:Nganga-AI/card-counter.git
+   cd card-id-counter
    ```
 2. Install the required packages:
    ```bash
    pip install -r requirements.txt
    ```
-3. Set up your GroqCloud API key:
-   * Add your GroqCloud API key as an environment variable:
-     ```bash
-     export GROQ_API_KEY="your-api-key"
-     ```
-   * Specify the model ID as an environment variable:
-     ```bash
-     export GROQ_MODEL_ID="llama-3.2-11b-vision-preview"
+3. Set up Firebase credentials:
+   * Create a `.env` file in the root directory and add your Firebase service account credentials:
+     ```env
+     type="service_account"
+     project_id="your-project-id"
+     private_key_id="your-private-key-id"
+     private_key="your-private-key"
+     client_email="your-client-email"
+     client_id="your-client-id"
+     auth_uri="https://accounts.google.com/o/oauth2/auth"
+     token_uri="https://oauth2.googleapis.com/token"
+     auth_provider_x509_cert_url="https://www.googleapis.com/oauth2/v1/certs"
+     client_x509_cert_url="your-client-x509-cert-url"
+     universe_domain="googleapis.com"
      ```
 4. Run the application:
    ```bash
-   python app.py
+   gradio app.py
    ```
 
 ## How It Works
 
 1. **Initialization** :
-
-* A SQLite database (`voter_cards.db`) is created to store voter card numbers.
-* The GroqCloud client is initialized using the API key.
-
-1. **User Interaction** :
-
-* Users upload an image of their voter card and enter the card number in the Gradio interface.
-* The image is converted to a base64-encoded string to send to the GroqCloud LLM.
-
-1. **Verification** :
-
-* The GroqCloud LLM is queried to check if:
-  1. The provided number appears on the card.
-  2. The card contains the word "Cameroun" to confirm its origin.
-* The model responds with `true` if both conditions are met; otherwise, it responds with `false`.
-
-1. **Database Storage** :
-
-* If verification succeeds, the card number is stored in the SQLite database. Duplicate entries are prevented.
-
-1. **Output** :
-
-* Users receive feedback on whether the verification succeeded or failed.
+   * Firebase is initialized using service account credentials.
+   * The OCR engine (EasyOCR) is loaded for text extraction.
+2. **User Interaction** :
+   * Users upload an image of their voter card and enter the card number via Gradio.
+   * The image is processed, and text is extracted using OCR.
+3. **Verification** :
+   * The OCR result is searched for:
+     1. The provided card number.
+     2. The keyword "Cameroun" to confirm its origin.
+   * Fuzzy matching is applied to handle OCR errors.
+4. **Database Storage** :
+   * If verification succeeds, the card number is stored in Firebase, avoiding duplicates.
+5. **Output** :
+   * Users receive feedback on whether the verification was successful or failed.
 
 ## Project Structure
 
 ```
-voter-card-verification/
+card-id-counter/
 │
 ├── app.py               # Main application file
+├── processor.py         # Image processing module
 ├── requirements.txt     # Python dependencies
-├── voter_cards.db       # SQLite database (auto-created on first run)
-└── README.md            # Project documentation
+├── .env                 # Environment variables for Firebase
+├── README.md            # Project documentation
 ```
 
 ## Usage
@@ -104,9 +104,9 @@ voter-card-verification/
 
 ## Future Enhancements
 
-* Integration with Firebase for cloud-based storage.
-* Improved OCR fallback for local verification.
+* Improved OCR preprocessing for better accuracy.
 * Support for additional countries and card types.
+* Alternative verification models using machine learning.
 
 ## License
 
@@ -114,7 +114,8 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 
 ## Acknowledgments
 
-* [GroqCloud](https://www.groq.com/) for their advanced LLM capabilities.
+* [EasyOCR](https://www.jaided.ai/easyocr/) for text extraction.
+* [Firebase](https://firebase.google.com/) for database storage.
 * [Gradio](https://www.gradio.app/) for the user-friendly web interface.
 
 ---

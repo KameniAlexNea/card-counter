@@ -1,5 +1,5 @@
 gradio
-groq
+thefuzz
 Pillow
 easyocr
 loguru
